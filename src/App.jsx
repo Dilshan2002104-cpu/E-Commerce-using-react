@@ -10,6 +10,8 @@ import PlaceOrder from './pages/PlaceOrder'
 import Orders from './pages/Oders'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
+import VersionFooter from './components/VersionFooter'
+import DeploymentStatus from './components/DeploymentStatus'
 import SearchBar from './components/SearchBar'
 
 import { ToastContainer } from 'react-toastify';
@@ -35,6 +37,8 @@ const App = () => {
         <Route path='/orders' element = {<Orders/>}/>
       </Routes>
       <Footer/>
+      <VersionFooter/>
+      <DeploymentStatus/>
     </div>
   )
 }
