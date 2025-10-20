@@ -1,8 +1,8 @@
-import React, { useContext } from 'react'
+import { useContext } from 'react'
 import { ShopContext } from '../context/SHopContext'
 import Title from './Title';
 
-const cartTotal = () => {
+const CartTotal = () => {
     const {currency,delivery_fee,getCartAmount} = useContext(ShopContext);
   return (
     <div className='w-full'>
@@ -29,4 +29,4 @@ const cartTotal = () => {
   )
 }
 
-export default cartTotal
+export default CartTotal

@@ -1,0 +1,113 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  DOCKER_IMAGE: dilshan019/ecommerce-react-app
+  CONTAINER_NAME: ecommerce-app
+
+jobs:
+  # Job 1: Lint and Test
+  test:
+    runs-on: ubuntu-latest
+    name: 🧪 Test & Lint
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 📦 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: 📚 Install dependencies
+      run: npm ci
+      
+    - name: 🔍 Run ESLint
+      run: npm run lint
+      
+    - name: 🏗️ Test build
+      run: npm run build
+
+  # Job 2: Build and Push Docker Image
+  build-and-push:
+    runs-on: ubuntu-latest
+    name: 🐳 Build & Push to Docker Hub
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🐳 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 🔐 Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    - name: 🏗️ Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: |
+          ${{ env.DOCKER_IMAGE }}:latest
+          ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # Job 3: Deploy to EC2
+  deploy:
+    runs-on: ubuntu-latest
+    name: 🚀 Deploy to EC2
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔑 Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+        
+    - name: 📤 Copy deployment script to EC2
+      run: |
+        scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+          ./scripts/deploy.sh ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/
+        
+    - name: 🚀 Deploy application
+      run: |
+        ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+          ubuntu@${{ secrets.EC2_HOST }} \
+          'chmod +x /home/ubuntu/deploy.sh && /home/ubuntu/deploy.sh'
+          
+    - name: ✅ Verify deployment
+      run: |
+        echo "🎉 Deployment completed!"
+        echo "🌐 Application URL: http://${{ secrets.EC2_HOST }}"
+        
+        # Wait a moment for container to start
+        sleep 10
+        
+        # Test if application is responding
+        if curl -f -s http://${{ secrets.EC2_HOST }} > /dev/null; then
+          echo "✅ Application is responding successfully!"
+        else
+          echo "❌ Application health check failed"
+          exit 1
+        fi
